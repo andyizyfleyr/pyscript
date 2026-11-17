@@ -56,7 +56,10 @@ class DownloadService:
         self._user_agents = user_agents
         self._cookies = cookies
         self._dedupe = dedupe or DedupeService(repository)
-        self._loop = asyncio.get_running_loop()
+        # NOTE : surtout ne pas capturer la boucle ici. Le service est construit par le
+        # conteneur, parfois *avant* que la boucle asyncio ne tourne (cas de l'interface
+        # graphique, qui crée le conteneur dans son thread moteur puis démarre la boucle).
+        # La boucle est donc résolue paresseusement, au premier téléchargement.
 
     # ------------------------------------------------------------------
     # API publique
@@ -182,7 +185,8 @@ class DownloadService:
         await self._transition(task, TaskState.DOWNLOADING)
 
         context = await self._build_context(task, cancel)
-        relay = ProgressRelay(self._loop, self._bus, task.id)
+        # On est dans une coroutine : la boucle courante existe forcément ici.
+        relay = ProgressRelay(asyncio.get_running_loop(), self._bus, task.id)
         try:
             result = await self._extractor.download(
                 task.url,
