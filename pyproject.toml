@@ -1,6 +1,6 @@
 [project]
 name = "tikvault"
-version = "0.1.0"
+version = "2.0.0"
 description = "TikVault — application desktop de téléchargement massif de vidéos TikTok (PySide6 + yt-dlp, asyncio, SQLite)."
 readme = "README.md"
 requires-python = ">=3.13"

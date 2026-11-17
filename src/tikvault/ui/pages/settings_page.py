@@ -1,4 +1,8 @@
-"""Page Réglages : destination, qualité, filtres, proxies, cookies, thème, mises à jour."""
+"""Page Réglages v2 : l'essentiel d'abord, les options avancées repliées.
+
+Le formulaire reste appliqué à chaud au moteur ; seuls l'organisation et le
+niveau de détail visible changent par rapport à la v1 — aucun réglage n'a disparu.
+"""
 
 from __future__ import annotations
 
@@ -28,6 +32,7 @@ from tikvault.infrastructure.updater import current_version
 from tikvault.settings import AppSettings, ThemeMode
 from tikvault.ui.icons import icon
 from tikvault.ui.theme import ACCENTS
+from tikvault.ui.widgets.collapsible import CollapsibleSection
 
 TOKENS_HELP = (
     "Jetons disponibles : {username} {id} {title} {date} {year} {index} "
@@ -57,18 +62,52 @@ class SettingsPage(QWidget):
         content = QWidget(scroll)
         root = QVBoxLayout(content)
         root.setContentsMargins(24, 20, 24, 20)
-        root.setSpacing(16)
+        root.setSpacing(12)
 
         title = QLabel("Réglages", content)
         title.setProperty("pageTitle", True)
         root.addWidget(title)
+        subtitle = QLabel(
+            "L'essentiel est ici. Les options avancées sont repliées plus bas — "
+            "cliquez sur un titre pour les ouvrir.",
+            content,
+        )
+        subtitle.setProperty("muted", True)
+        subtitle.setWordWrap(True)
+        root.addWidget(subtitle)
 
-        root.addWidget(self._build_files(content))
-        root.addWidget(self._build_quality(content))
-        root.addWidget(self._build_filters(content))
-        root.addWidget(self._build_network(content))
-        root.addWidget(self._build_appearance(content))
+        # --- Visible d'emblée : l'essentiel + les mises à jour du moteur ----
+        root.addWidget(self._build_essentials(content))
         root.addWidget(self._build_updates(content))
+
+        # --- Replié : tout le reste ----------------------------------------
+        root.addWidget(
+            CollapsibleSection(
+                "Nom des fichiers et qualité", self._build_files_quality(content), parent=content
+            )
+        )
+        root.addWidget(
+            CollapsibleSection(
+                "Filtres appliqués par défaut", self._build_filters(content), parent=content
+            )
+        )
+        root.addWidget(
+            CollapsibleSection(
+                "Réseau : proxies, cookies, identité",
+                self._build_network(content),
+                parent=content,
+            )
+        )
+        root.addWidget(
+            CollapsibleSection(
+                "Performance et relances", self._build_performance(content), parent=content
+            )
+        )
+        root.addWidget(
+            CollapsibleSection(
+                "Comportement de la fenêtre", self._build_window(content), parent=content
+            )
+        )
 
         footer = QHBoxLayout()
         self._status = QLabel("", content)
@@ -77,7 +116,7 @@ class SettingsPage(QWidget):
         footer.addStretch(1)
         revert = QPushButton("Rétablir", content)
         revert.clicked.connect(lambda: self.load(self._settings))
-        save = QPushButton(icon("check", "#ffffff", 40), "Enregistrer les réglages", content)
+        save = QPushButton(icon("check", "#ffffff", 40), "Enregistrer", content)
         save.setProperty("primary", True)
         save.clicked.connect(self.save_requested)
         footer.addWidget(revert)
@@ -94,8 +133,10 @@ class SettingsPage(QWidget):
         self.load(settings)
 
     # ------------------------------------------------------------------
-    def _build_files(self, parent: QWidget) -> QGroupBox:
-        box = QGroupBox("Fichiers et noms", parent)
+    # L'essentiel (toujours visible)
+    # ------------------------------------------------------------------
+    def _build_essentials(self, parent: QWidget) -> QGroupBox:
+        box = QGroupBox("L'essentiel", parent)
         form = QFormLayout(box)
         form.setContentsMargins(14, 16, 14, 14)
 
@@ -107,29 +148,7 @@ class SettingsPage(QWidget):
         folder_row.addWidget(browse)
         form.addRow("Dossier de destination", folder_row)
 
-        self.template = QLineEdit(parent)
-        form.addRow("Modèle de nom", self.template)
-        hint = QLabel(TOKENS_HELP, parent)
-        hint.setProperty("muted", True)
-        hint.setWordWrap(True)
-        form.addRow("", hint)
-        return box
-
-    def _build_quality(self, parent: QWidget) -> QGroupBox:
-        box = QGroupBox("Qualité et format", parent)
-        form = QFormLayout(box)
-        form.setContentsMargins(14, 16, 14, 14)
-
-        self.best_quality = QCheckBox("Meilleure qualité disponible", parent)
-        self.no_watermark = QCheckBox("Préférer le flux sans filigrane", parent)
-        self.embed_thumbnail = QCheckBox("Incruster la miniature", parent)
-        self.embed_metadata = QCheckBox("Incruster les métadonnées (titre, auteur, date)", parent)
-        form.addRow("Qualité", self.best_quality)
-        form.addRow("", self.no_watermark)
-        form.addRow("Métadonnées", self.embed_thumbnail)
-        form.addRow("", self.embed_metadata)
-
-        self.audio_only = QCheckBox("Extraire uniquement l'audio (nécessite ffmpeg)", parent)
+        self.audio_only = QCheckBox("Télécharger l'audio seul par défaut", parent)
         self.audio_format = QComboBox(parent)
         self.audio_format.addItems(("mp3", "m4a", "opus", "flac", "wav", "aac"))
         audio_row = QHBoxLayout()
@@ -152,21 +171,85 @@ class SettingsPage(QWidget):
         conc_row.addWidget(self.concurrency_label)
         form.addRow("Téléchargements simultanés", conc_row)
 
-        self.rate_limit = QSpinBox(parent)
-        self.rate_limit.setRange(0, 1_000_000)
-        self.rate_limit.setSuffix(" Ko/s")
-        self.rate_limit.setSpecialValueText("illimité")
-        form.addRow("Limitation de débit", self.rate_limit)
+        self.theme = QComboBox(parent)
+        self.theme.addItem("Sombre", ThemeMode.DARK.value)
+        self.theme.addItem("Clair", ThemeMode.LIGHT.value)
+        self.theme.addItem("Système", ThemeMode.SYSTEM.value)
+        form.addRow("Thème", self.theme)
 
-        self.max_attempts = QSpinBox(parent)
-        self.max_attempts.setRange(1, 10)
-        form.addRow("Tentatives maximum", self.max_attempts)
+        self.accent = QComboBox(parent)
+        for name, value in ACCENTS.items():
+            self.accent.addItem(name.capitalize(), value)
+        form.addRow("Couleur d'accent", self.accent)
+
+        self.notify = QCheckBox("Notification système à la fin d'un lot", parent)
+        form.addRow("Notifications", self.notify)
         return box
 
-    def _build_filters(self, parent: QWidget) -> QGroupBox:
-        box = QGroupBox("Filtres appliqués par défaut", parent)
+    def _build_updates(self, parent: QWidget) -> QGroupBox:
+        box = QGroupBox("Moteur de téléchargement (yt-dlp)", parent)
         form = QFormLayout(box)
         form.setContentsMargins(14, 16, 14, 14)
+
+        self.version_label = QLabel(f"yt-dlp {current_version()}", parent)
+        self.auto_update = QCheckBox("Vérifier les mises à jour au démarrage", parent)
+
+        row = QHBoxLayout()
+        row.addWidget(self.version_label)
+        row.addSpacing(16)
+        check = QPushButton(icon("refresh", "#00d2d3", 40), "Vérifier", parent)
+        check.clicked.connect(self.check_update_requested)
+        apply_button = QPushButton(
+            icon("download", "#ffffff", 40), "Mettre à jour maintenant", parent
+        )
+        apply_button.setProperty("primary", True)
+        apply_button.clicked.connect(self.apply_update_requested)
+        row.addWidget(check)
+        row.addWidget(apply_button)
+        row.addStretch(1)
+        form.addRow("Version installée", row)
+        form.addRow("", self.auto_update)
+
+        note = QLabel(
+            "TikTok modifie souvent son site : mettre yt-dlp à jour répare la plupart des pannes.",
+            parent,
+        )
+        note.setProperty("muted", True)
+        note.setWordWrap(True)
+        form.addRow("", note)
+        return box
+
+    # ------------------------------------------------------------------
+    # Sections avancées (repliées)
+    # ------------------------------------------------------------------
+    def _build_files_quality(self, parent: QWidget) -> QWidget:
+        panel = QWidget(parent)
+        form = QFormLayout(panel)
+        form.setContentsMargins(8, 4, 8, 4)
+
+        self.template = QLineEdit(parent)
+        form.addRow("Modèle de nom", self.template)
+        hint = QLabel(TOKENS_HELP, parent)
+        hint.setProperty("muted", True)
+        hint.setWordWrap(True)
+        form.addRow("", hint)
+
+        self.best_quality = QCheckBox("Meilleure qualité disponible", parent)
+        self.no_watermark = QCheckBox("Préférer le flux sans filigrane", parent)
+        self.embed_thumbnail = QCheckBox("Incruster la miniature (nécessite FFmpeg)", parent)
+        self.embed_metadata = QCheckBox(
+            "Incruster les métadonnées — titre, auteur, date (nécessite FFmpeg)", parent
+        )
+        form.addRow("Qualité", self.best_quality)
+        form.addRow("", self.no_watermark)
+        form.addRow("Métadonnées", self.embed_thumbnail)
+        form.addRow("", self.embed_metadata)
+        return panel
+
+    def _build_filters(self, parent: QWidget) -> QWidget:
+        panel = QWidget(parent)
+        form = QFormLayout(panel)
+        form.setContentsMargins(8, 4, 8, 4)
 
         self.max_items = QSpinBox(parent)
         self.max_items.setRange(0, 100_000)
@@ -195,15 +278,18 @@ class SettingsPage(QWidget):
         duration_row.addStretch(1)
         form.addRow("Durée", duration_row)
 
-        note = QLabel("Les dates se règlent lot par lot dans la boîte de dialogue d'ajout.", parent)
+        note = QLabel(
+            "Les dates se règlent lot par lot via « Options avancées… » de la page Télécharger.",
+            parent,
+        )
         note.setProperty("muted", True)
         form.addRow("", note)
-        return box
+        return panel
 
-    def _build_network(self, parent: QWidget) -> QGroupBox:
-        box = QGroupBox("Proxies, identité et cookies", parent)
-        form = QFormLayout(box)
-        form.setContentsMargins(14, 16, 14, 14)
+    def _build_network(self, parent: QWidget) -> QWidget:
+        panel = QWidget(parent)
+        form = QFormLayout(panel)
+        form.setContentsMargins(8, 4, 8, 4)
 
         self.proxies = QPlainTextEdit(parent)
         self.proxies.setPlaceholderText(
@@ -244,66 +330,36 @@ class SettingsPage(QWidget):
         note.setProperty("muted", True)
         note.setWordWrap(True)
         form.addRow("", note)
-        return box
+        return panel
 
-    def _build_appearance(self, parent: QWidget) -> QGroupBox:
-        box = QGroupBox("Apparence et notifications", parent)
-        form = QFormLayout(box)
-        form.setContentsMargins(14, 16, 14, 14)
+    def _build_performance(self, parent: QWidget) -> QWidget:
+        panel = QWidget(parent)
+        form = QFormLayout(panel)
+        form.setContentsMargins(8, 4, 8, 4)
 
-        self.theme = QComboBox(parent)
-        self.theme.addItem("Sombre", ThemeMode.DARK.value)
-        self.theme.addItem("Clair", ThemeMode.LIGHT.value)
-        self.theme.addItem("Système", ThemeMode.SYSTEM.value)
-        form.addRow("Thème", self.theme)
+        self.rate_limit = QSpinBox(parent)
+        self.rate_limit.setRange(0, 1_000_000)
+        self.rate_limit.setSuffix(" Ko/s")
+        self.rate_limit.setSpecialValueText("illimité")
+        form.addRow("Limitation de débit", self.rate_limit)
 
-        self.accent = QComboBox(parent)
-        for name, value in ACCENTS.items():
-            self.accent.addItem(name.capitalize(), value)
-        form.addRow("Couleur d'accent", self.accent)
+        self.max_attempts = QSpinBox(parent)
+        self.max_attempts.setRange(1, 10)
+        form.addRow("Tentatives maximum", self.max_attempts)
+        return panel
 
-        self.notify = QCheckBox("Notification système à la fin d'un lot", parent)
+    def _build_window(self, parent: QWidget) -> QWidget:
+        panel = QWidget(parent)
+        form = QFormLayout(panel)
+        form.setContentsMargins(8, 4, 8, 4)
+
         self.start_minimized = QCheckBox("Démarrer dans la zone de notification", parent)
         self.confirm_close = QCheckBox(
             "Confirmer avant de fermer pendant un téléchargement", parent
         )
-        form.addRow("Notifications", self.notify)
         form.addRow("Démarrage", self.start_minimized)
         form.addRow("Fermeture", self.confirm_close)
-        return box
-
-    def _build_updates(self, parent: QWidget) -> QGroupBox:
-        box = QGroupBox("Moteur de téléchargement", parent)
-        form = QFormLayout(box)
-        form.setContentsMargins(14, 16, 14, 14)
-
-        self.version_label = QLabel(f"yt-dlp {current_version()}", parent)
-        form.addRow("Version installée", self.version_label)
-
-        self.auto_update = QCheckBox("Vérifier les mises à jour au démarrage", parent)
-        form.addRow("", self.auto_update)
-
-        row = QHBoxLayout()
-        check = QPushButton(icon("refresh", "#00d2d3", 40), "Vérifier", parent)
-        check.clicked.connect(self.check_update_requested)
-        apply_button = QPushButton(
-            icon("download", "#ffffff", 40), "Mettre à jour maintenant", parent
-        )
-        apply_button.setProperty("primary", True)
-        apply_button.clicked.connect(self.apply_update_requested)
-        row.addWidget(check)
-        row.addWidget(apply_button)
-        row.addStretch(1)
-        form.addRow("Mise à jour", row)
-
-        note = QLabel(
-            "TikTok modifie souvent son site : mettre yt-dlp à jour répare la plupart des pannes.",
-            parent,
-        )
-        note.setProperty("muted", True)
-        note.setWordWrap(True)
-        form.addRow("", note)
-        return box
+        return panel
 
     # ------------------------------------------------------------------
     def load(self, settings: AppSettings) -> None:
