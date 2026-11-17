@@ -109,15 +109,22 @@ class QueuePage(QWidget):
     reorder_requested = Signal(list)
     thumbnail_requested = Signal(str)
 
-    def __init__(self, *, accent: str = "#ff2e63", parent: QWidget | None = None) -> None:
+    def __init__(
+        self, *, accent: str = "#ff2e63", compact: bool = False, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self._accent = accent
+        self._compact = compact
         self._tasks: dict[str, DownloadTask] = {}
         self._order: list[str] = []
         self._rebuilding = False
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 20, 24, 20)
+        # En mode compact (page Télécharger de la v2), la page hôte gère déjà les marges.
+        if compact:
+            root.setContentsMargins(0, 0, 0, 0)
+        else:
+            root.setContentsMargins(24, 20, 24, 20)
         root.setSpacing(14)
 
         root.addLayout(self._build_toolbar())
@@ -137,32 +144,45 @@ class QueuePage(QWidget):
     # ------------------------------------------------------------------
     def _build_toolbar(self) -> QHBoxLayout:
         bar = QHBoxLayout()
-        title = QLabel("File d'attente", self)
-        title.setProperty("pageTitle", True)
-        bar.addWidget(title)
+        if self._compact:
+            # Mode intégré (page Télécharger) : un simple titre de section.
+            section = QLabel("Téléchargements", self)
+            section.setProperty("cardTitle", True)
+            bar.addWidget(section)
+        else:
+            title = QLabel("File d'attente", self)
+            title.setProperty("pageTitle", True)
+            bar.addWidget(title)
         self._counter = QLabel("", self)
         self._counter.setProperty("muted", True)
         bar.addWidget(self._counter)
         bar.addStretch(1)
 
-        self._add = QPushButton(icon("plus", "#ffffff", 40), "Ajouter", self)
-        self._add.setProperty("primary", True)
-        self._add.clicked.connect(self.add_requested)
-
         self._pause = QPushButton(icon("pause", "#f59e0b", 40), "Pause", self)
+        self._pause.setToolTip("Mettre tous les téléchargements en pause")
         self._pause.clicked.connect(self.pause_all_requested)
 
         self._resume = QPushButton(icon("play", "#22c55e", 40), "Reprendre", self)
+        self._resume.setToolTip("Reprendre tous les téléchargements")
         self._resume.clicked.connect(self.resume_all_requested)
 
         self._retry = QPushButton(icon("refresh", "#00d2d3", 40), "Relancer les échecs", self)
+        self._retry.setToolTip("Remettre en file toutes les vidéos en échec")
         self._retry.clicked.connect(self.retry_requested)
 
         self._cancel = QPushButton(icon("stop", "#ef4444", 40), "Tout annuler", self)
         self._cancel.setProperty("danger", True)
         self._cancel.clicked.connect(self.cancel_all_requested)
 
-        for button in (self._add, self._pause, self._resume, self._retry, self._cancel):
+        buttons: tuple[QPushButton, ...]
+        if self._compact:
+            buttons = (self._pause, self._resume, self._retry, self._cancel)
+        else:
+            self._add = QPushButton(icon("plus", "#ffffff", 40), "Ajouter", self)
+            self._add.setProperty("primary", True)
+            self._add.clicked.connect(self.add_requested)
+            buttons = (self._add, self._pause, self._resume, self._retry, self._cancel)
+        for button in buttons:
             bar.addWidget(button)
         return bar
 

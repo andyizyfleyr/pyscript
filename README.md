@@ -5,7 +5,7 @@
 <h1 align="center">TikVault</h1>
 
 <p align="center">
-  <strong>Application desktop de téléchargement massif de vidéos TikTok</strong><br/>
+  <strong>Application desktop de téléchargement massif de vidéos TikTok — v2 « coller → télécharger »</strong><br/>
   Python 3.13 · PySide6 / Qt 6 · yt-dlp · asyncio · SQLAlchemy 2.0 async · Pydantic v2
 </p>
 
@@ -31,9 +31,9 @@
 ## Présentation
 
 **TikVault** est une application de bureau complète pour télécharger des vidéos
-TikTok en masse : collez des liens en vrac, importez un fichier, aspirez un
-profil `@username`, un hashtag, un son ou une collection — le moteur s'occupe
-du reste : file d'attente persistante, reprise après crash, relances avec
+TikTok en masse. La **v2** met la simplicité au premier plan : un seul écran
+pour l'essentiel — collez vos liens (ou `@comptes`, `#hashtags`), choisissez
+Vidéo ou Audio MP3, cliquez **Télécharger**. Le moteur s'occupe du reste : file d'attente persistante, reprise après crash, relances avec
 backoff exponentiel, rotation de proxies et d'User-Agents, anti-doublon par
 hash de contenu, extraction audio MP3/M4A avec miniature et métadonnées
 intégrées.
@@ -90,12 +90,16 @@ centaines de téléchargements en file.
   stocké deux fois, même sous un autre nom.
 - Dossier de destination configurable, espace disque surveillé en continu.
 
-### Interface
+### Interface (v2, pensée pour la simplicité)
+- **Un seul écran pour tout le flux principal** : zone de collage, choix
+  Vidéo / Audio MP3, bouton Télécharger, progression globale résumée en une
+  ligne, liste des téléchargements et journal replié.
+- **4 pages seulement** : Télécharger, Veille de comptes, Historique, Réglages.
+- Réglages « l'essentiel d'abord » : les options avancées (proxies, cookies,
+  modèle de nom, filtres…) sont repliées mais toujours là.
 - Thème **sombre / clair**, couleur d'accent personnalisable, icônes
   vectorielles dessinées par le programme (aucune image externe).
-- Tableau de bord temps réel : vitesse totale, réussites/échecs, espace
-  disque, ETA, journal d'activité.
-- File d'attente réordonnable par **glisser-déposer**, aperçu **miniature**,
+- Liste réordonnable par **glisser-déposer**, aperçu **miniature**,
   progression **globale et par vidéo** animée.
 - Historique avec **recherche et filtres**, **export CSV** (séparateur `;`,
   encodage compatible Excel).
@@ -146,8 +150,8 @@ src/tikvault/
     ├── main_window.py       #   navigation, notifications, raccourcis
     ├── theme.py, icons.py   #   thèmes sombre/clair, icônes vectorielles
     ├── tray.py              #   icône de zone de notification
-    ├── widgets/             #   progression animée, cartes, miniatures, dialogue d'ajout
-    └── pages/               #   Tableau de bord, File, Veille, Historique, Réglages
+    ├── widgets/             #   progression animée, sections repliables, miniatures
+    └── pages/               #   Télécharger (tout-en-un), Veille, Historique, Réglages
 tests/                       # 262 tests pytest sur le moteur
 build/tikvault.spec          # recette PyInstaller
 scripts/make_icon.py         # régénération des icônes (sans dépendance)
@@ -193,53 +197,49 @@ défaut dans `~/TikVault`.
 
 ## Guide d'utilisation page par page
 
-### 1 · Tableau de bord
-Vue d'ensemble en temps réel : vitesse totale, nombre de réussites et
-d'échecs, espace disque restant, estimation du temps restant (ETA), barre de
-progression globale animée et journal d'activité. Les boutons **Ajouter**,
-**Tout mettre en pause**, **Tout reprendre** et **Tout annuler** pilotent le
-lot entier. Une notification système s'affiche à la fin de chaque lot.
+### 1 · Télécharger — l'écran unique du quotidien
+Tout se passe ici, en trois gestes :
 
-### 2 · File d'attente
-Chaque téléchargement a sa carte : miniature, titre, auteur, état coloré,
-progression, vitesse et ETA individuels, boutons pause/reprise/annulation.
-Réordonnez la file par **glisser-déposer** : l'ordre est respecté par les
-workers. Le bouton **Relancer les échecs** remet en file toutes les vidéos en
-erreur récupérable.
+1. **Collez** vos liens dans la grande zone (plusieurs liens à la fois, même
+   noyés dans du texte — l'application extrait, nettoie et dédoublonne). Les
+   `@comptes` (profil entier) et `#hashtags` fonctionnent aussi.
+2. Choisissez **Vidéo** ou **Audio (MP3)**.
+3. Cliquez **Télécharger**.
 
-**Ajout de sources** (bouton « Ajouter » ou `Ctrl+N`) : collez n'importe quel
-texte contenant des liens — l'application extrait, nettoie et dédoublonne les
-URL ; tapez `@compte` pour un profil entier, `#hashtag` pour un défi, ou
-importez un fichier `.txt`/`.csv`. Les options rapides (audio seul, nombre
-maximum, dossier) s'appliquent au lot ajouté.
+La barre de progression globale et son résumé d'une ligne (terminées, échecs,
+vitesse, temps restant) suivent le lot en temps réel. En dessous, chaque vidéo
+a sa ligne : miniature, état coloré, progression, boutons pause/annuler. On
+peut réordonner par glisser-déposer, tout mettre en pause, **relancer les
+échecs** en un clic.
 
-### 3 · Veille de comptes
-Ajoutez un `@compte` à surveiller : à intervalle régulier (réglable),
-TikVault compare les vidéos publiées avec l'historique et télécharge
-automatiquement les nouveautés. Chaque compte peut être suspendu, vérifié
-immédiatement (« Vérifier maintenant ») ou retiré.
+- **Importer un fichier…** : télécharge tous les liens d'un `.txt`/`.csv`.
+- **Options avancées…** : filtres par lot (plage de dates, vues minimum,
+  nombre maximum de vidéos).
+- **Journal d'activité** (replié en bas) : le détail des événements du moteur.
 
-### 4 · Historique
-Toutes les tâches passées, avec recherche plein texte et filtres par état
-(réussi, échoué, annulé…). **Export CSV** en un clic : fichier `;`-séparé,
-encodé UTF-8 avec BOM, ouvrable directement dans Excel. « Nettoyer les
-terminés » retire les entrées abouties sans toucher aux fichiers.
+### 2 · Veille de comptes
+Ajoutez un `@compte` : à intervalle régulier, TikVault détecte ses nouvelles
+vidéos et les télécharge automatiquement. Chaque compte peut être suspendu,
+vérifié immédiatement ou retiré.
 
-### 5 · Réglages
-- **Téléchargement** : dossier de destination, modèle de nom de fichier,
-  qualité maximale, sans filigrane, audio seul + format, miniature et
-  métadonnées intégrées.
-- **Performances** : téléchargements simultanés (1–10), limitation de débit,
-  nombre de tentatives, délai réseau.
-- **Filtres par défaut** : dates, durées, vues minimum, maximum par source.
-- **Réseau** : liste de proxies (un par ligne) avec rotation automatique,
-  rotation d'User-Agents, fichier `cookies.txt` ou import navigateur
-  (Chrome / Firefox) pour les contenus nécessitant une session.
-- **Apparence** : thème sombre/clair, couleur d'accent, notifications,
-  démarrage réduit, confirmation de fermeture.
-- **Mises à jour** : vérifier la version de yt-dlp et **« Mettre à jour
-  maintenant »** sans réinstaller l'application (mise à jour portable,
-  prise en compte au redémarrage).
+### 3 · Historique
+Toutes les tâches passées, avec recherche plein texte et filtres par état.
+**Export CSV** en un clic (fichier `;`-séparé, UTF-8 BOM, ouvrable dans
+Excel). « Nettoyer les terminés » retire les entrées abouties sans toucher
+aux fichiers.
+
+### 4 · Réglages — l'essentiel d'abord
+En haut, ce qui sert tous les jours : dossier de destination, audio par
+défaut + format, téléchargements simultanés, thème, notifications, et les
+mises à jour de yt-dlp (« Mettre à jour maintenant »).
+
+En dessous, **cliquez sur un titre pour déplier** les options avancées :
+- *Nom des fichiers et qualité* : modèle de nom personnalisable, sans
+  filigrane, métadonnées/miniature intégrées ;
+- *Filtres appliqués par défaut* : dates, durées, vues, maximum par source ;
+- *Réseau* : proxies avec rotation, cookies navigateur (Chrome/Firefox) ;
+- *Performance et relances* : limitation de débit, nombre de tentatives ;
+- *Comportement de la fenêtre*.
 
 ## Mode ligne de commande
 

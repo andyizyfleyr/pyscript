@@ -33,9 +33,8 @@ from tikvault.infrastructure.updater import current_version
 from tikvault.settings import AppSettings
 from tikvault.ui.engine_bridge import EngineBridge
 from tikvault.ui.icons import icon
-from tikvault.ui.pages.dashboard_page import DashboardPage
 from tikvault.ui.pages.history_page import HistoryPage
-from tikvault.ui.pages.queue_page import QueuePage
+from tikvault.ui.pages.home_page import HomePage
 from tikvault.ui.pages.settings_page import SettingsPage
 from tikvault.ui.pages.watch_page import WatchPage
 from tikvault.ui.theme import apply_palette, palette_for
@@ -43,8 +42,7 @@ from tikvault.ui.tray import TrayNotifier, build_tray_menu
 from tikvault.ui.widgets.source_dialog import SourceDialog
 
 PAGES = (
-    ("dashboard", "Tableau de bord", "dashboard"),
-    ("queue", "File d'attente", "queue"),
+    ("home", "Télécharger", "download"),
     ("watch", "Veille de comptes", "user"),
     ("history", "Historique", "history"),
     ("settings", "Réglages", "settings"),
@@ -94,14 +92,14 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._build_sidebar())
 
         self._stack = QStackedWidget(central)
-        self._dashboard = DashboardPage(accent=self._settings.accent_color, parent=self._stack)
-        self._queue = QueuePage(accent=self._settings.accent_color, parent=self._stack)
+        self._home = HomePage(accent=self._settings.accent_color, parent=self._stack)
+        self._queue = self._home.queue  # la liste des téléchargements vit dans la page d'accueil
         self._watch = WatchPage(accent=self._settings.accent_color, parent=self._stack)
         self._history = HistoryPage(accent=self._settings.accent_color, parent=self._stack)
         self._settings_page = SettingsPage(
             self._settings, accent=self._settings.accent_color, parent=self._stack
         )
-        for page in (self._dashboard, self._queue, self._watch, self._history, self._settings_page):
+        for page in (self._home, self._watch, self._history, self._settings_page):
             self._stack.addWidget(page)
 
         layout.addWidget(self._stack, 1)
@@ -184,12 +182,9 @@ class MainWindow(QMainWindow):
     # Câblage
     # ------------------------------------------------------------------
     def _connect_pages(self) -> None:
-        self._dashboard.add_requested.connect(self._open_source_dialog)
-        self._dashboard.pause_requested.connect(self._bridge.pause_all)
-        self._dashboard.resume_requested.connect(self._bridge.resume_all)
-        self._dashboard.cancel_requested.connect(self._confirm_cancel_all)
+        self._home.download_requested.connect(self._start_download)
+        self._home.advanced_requested.connect(self._open_source_dialog)
 
-        self._queue.add_requested.connect(self._open_source_dialog)
         self._queue.pause_all_requested.connect(self._bridge.pause_all)
         self._queue.resume_all_requested.connect(self._bridge.resume_all)
         self._queue.cancel_all_requested.connect(self._confirm_cancel_all)
@@ -220,7 +215,7 @@ class MainWindow(QMainWindow):
         bridge.task_meta.connect(self._queue.update_meta)
         bridge.task_completed.connect(lambda task: self._queue.add_task(task))
         bridge.task_progress.connect(self._queue.update_progress)
-        bridge.stats_updated.connect(self._dashboard.update_stats)
+        bridge.stats_updated.connect(self._home.update_stats)
         bridge.batch_finished.connect(self._on_batch_finished)
         bridge.log_message.connect(self._on_log)
         bridge.source_resolved.connect(self._on_source_resolved)
@@ -247,14 +242,14 @@ class MainWindow(QMainWindow):
         self._bridge.request_watched()
 
     def _on_log(self, level: str, message: str) -> None:
-        self._dashboard.append_log(level, message)
+        self._home.append_log(level, message)
         self._status_label.setText(message[:120])
 
     def _on_source_resolved(self, source: str, label: str, count: int) -> None:
         self._on_log("info", f"{label} : {count} vidéo(s) ajoutée(s) à la file.")
 
     def _on_batch_finished(self, done: int, failed: int, skipped: int, size: int) -> None:
-        self._dashboard.notify_batch_finished(done, failed, skipped, size)
+        self._home.notify_batch_finished(done, failed, skipped, size)
         self._tray.notify(
             "TikVault — lot terminé",
             f"{done} vidéo(s) téléchargée(s)" + (f", {failed} échec(s)" if failed else ""),
@@ -274,6 +269,14 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Actions utilisateur
     # ------------------------------------------------------------------
+    def _start_download(self, text: str, file_path: object, audio_only: bool) -> None:
+        """Flux principal v2 : texte collé (et/ou fichier importé) → file d'attente."""
+        self._home.reset_progress_state()
+        options = self._settings.download_options()
+        if audio_only:
+            options.audio_only = True
+        self._bridge.add_sources_with_options(text, str(file_path) if file_path else None, options)
+
     def _open_source_dialog(self) -> None:
         dialog = SourceDialog(self, accent=self._settings.accent_color)
         if dialog.exec() != SourceDialog.DialogCode.Accepted:
