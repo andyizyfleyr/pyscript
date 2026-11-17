@@ -1,8 +1,12 @@
 """Analyse des sources d'entrée : liens en vrac, fichiers .txt/.csv, profils, hashtags.
 
+Plateformes reconnues : **TikTok** (vidéos, profils, hashtags, sons, collections),
+**YouTube** (vidéos, Shorts, playlists, chaînes) et **Facebook** (vidéos, Reels,
+liens fb.watch). Toute autre URL est ignorée silencieusement.
+
 Responsabilités :
   1. **détection** — extraire toute URL ou mention exploitable d'un texte libre ;
-  2. **nettoyage** — supprimer les paramètres de suivi TikTok (``?_r=1&_t=…``) ;
+  2. **nettoyage** — supprimer les paramètres de suivi (``?_r=…``, ``?si=…``, ``?mibextid=…``) ;
   3. **qualification** — décider s'il s'agit d'une vidéo, d'un profil, d'un son… ;
   4. **dédoublonnage** — une seule tâche par vidéo, ordre de saisie conservé.
 """
@@ -29,6 +33,32 @@ _TIKTOK_HOSTS = (
 # Raccourcisseurs : l'identifiant réel n'est connu qu'après redirection. On les traite
 # donc comme des vidéos et on laisse l'extracteur résoudre le lien.
 _SHORTENER_RE = re.compile(r"(?i)^https?://(?:vm|vt|v)\.(?:tiktok\.com|tiktokv\.com)/")
+
+# --- YouTube ---------------------------------------------------------------
+# Vidéo classique, Short ou direct : l'identifiant fait 11 caractères (base64 URL).
+_YT_VIDEO_RE = re.compile(
+    r"(?i)(?:(?:www\.|m\.|music\.)?youtube\.com/(?:watch\?[^#\s]*?v=|shorts/|live/)"
+    r"|youtu\.be/)([\w\-]{5,20})"
+)
+_YT_PLAYLIST_RE = re.compile(r"(?i)(?:www\.|m\.)?youtube\.com/playlist\?[^#\s]*list=[\w\-]+")
+# Chaîne : @pseudo, /channel/ID, /c/nom ou /user/nom (± /videos, /shorts, /streams).
+_YT_CHANNEL_RE = re.compile(
+    r"(?i)^https?://(?:www\.|m\.)?youtube\.com/"
+    r"(?:@[\w.\-]+|channel/[\w\-]+|c/[\w.\-]+|user/[\w.\-]+)"
+    r"(?:/(?:videos|shorts|streams))?/?$"
+)
+
+# --- Facebook ----------------------------------------------------------------
+# Vidéo, Reel, page vidéo d'une publication ou lien court fb.watch.
+_FB_VIDEO_RE = re.compile(
+    r"(?i)(?:(?:www\.|m\.|web\.)?facebook\.com/"
+    r"(?:watch/?\?[^#\s]*v=\d+|reel/\d+|[\w.\-]+/videos/\d+"
+    r"|video\.php\?[^#\s]*v=\d+|share/[vr]/[\w\-]+)"
+    r"|fb\.watch/[\w\-]+)"
+)
+
+# Indices d'hôte reconnus (heuristiques CSV).
+_HOST_HINTS = ("tiktok", "youtu", "facebook", "fb.watch")
 # Hashtags « de bruit » : très fréquents, aucune valeur de recherche.
 _NOISE_TAGS = {
     "fyp",
@@ -91,6 +121,20 @@ _TRACKING_PARAMS = {
     "source",
     "fbclid",
     "gclid",
+    # YouTube
+    "si",
+    "pp",
+    "feature",
+    "ab_channel",
+    # Facebook
+    "mibextid",
+    "rdid",
+    "sfnsn",
+    "wtsid",
+    "paipv",
+    "eav",
+    "_rdr",
+    "ref",
 }
 
 
@@ -151,8 +195,16 @@ def canonical_video_id(url_or_id: str) -> str | None:
     return None
 
 
+def youtube_video_id(url: str) -> str | None:
+    """Identifiant d'une vidéo YouTube (watch, Short, live ou youtu.be), ou ``None``."""
+    if match := _YT_VIDEO_RE.search(url):
+        return match.group(1)
+    return None
+
+
 def classify(url: str) -> SourceType:
-    """Qualifie une URL TikTok nettoyée."""
+    """Qualifie une URL nettoyée (TikTok, YouTube ou Facebook)."""
+    # --- TikTok (plateforme historique, testée en premier) ---
     if canonical_video_id(url):
         return SourceType.VIDEO
     if _PLAYLIST_RE.search(url):
@@ -166,6 +218,16 @@ def classify(url: str) -> SourceType:
     if _SHORTENER_RE.match(url):
         # Lien raccourci : impossible de connaître l'identifiant sans le suivre,
         # mais c'est une vidéo dans l'immense majorité des cas.
+        return SourceType.VIDEO
+    # --- YouTube ---
+    if youtube_video_id(url):
+        return SourceType.VIDEO
+    if _YT_PLAYLIST_RE.search(url):
+        return SourceType.PLAYLIST
+    if _YT_CHANNEL_RE.match(url):
+        return SourceType.PROFILE
+    # --- Facebook ---
+    if _FB_VIDEO_RE.search(url):
         return SourceType.VIDEO
     return SourceType.UNKNOWN
 
@@ -228,7 +290,9 @@ class SourceParser:
             candidates: list[str] = []
             if url_columns:
                 candidates = [row[i] for i in url_columns if i < len(row)]
-            if not any("tiktok" in c.lower() or "@" in c or "#" in c for c in candidates):
+            if not any(
+                "@" in c or "#" in c or any(h in c.lower() for h in _HOST_HINTS) for c in candidates
+            ):
                 candidates = list(row)  # pas de colonne dédiée → balayage complet
             for cell in candidates:
                 for source in self._parse_line(cell.strip()):
@@ -240,7 +304,7 @@ class SourceParser:
     @staticmethod
     def _looks_like_header(header: list[str]) -> bool:
         """Heuristique : la première ligne est un en-tête si aucune cellule n'est une URL."""
-        return not any("tiktok.com" in cell or "://" in cell for cell in header)
+        return not any("://" in cell or any(h in cell for h in _HOST_HINTS) for cell in header)
 
     def _parse_line(self, line: str) -> list[ParsedSource]:
         """Analyse une ligne : d'abord les URL, puis les mentions/hashtags nus."""
@@ -254,16 +318,18 @@ class SourceParser:
 
             kind = classify(url)
             if kind is SourceType.VIDEO:
-                # On normalise vers l'URL longue quand l'ID est connu : évite les doublons
-                # entre vm.tiktok.com/xxxx et tiktok.com/@user/video/xxxx.
+                # On normalise vers une URL canonique quand l'ID est connu : évite les
+                # doublons entre vm.tiktok.com/x et tiktok.com/@user/video/x, ou entre
+                # youtu.be/ID, les Shorts et youtube.com/watch?v=ID.
                 video_id = canonical_video_id(url)
-                found.append(ParsedSource(kind, url, original=raw_url))
-                if video_id:
-                    consumed = consumed.replace(raw_url, f" __ID{video_id}__ ")
+                yt_id = youtube_video_id(url) if video_id is None else None
+                value = f"https://www.youtube.com/watch?v={yt_id}" if yt_id else url
+                found.append(ParsedSource(kind, value, original=raw_url))
+                consumed = consumed.replace(raw_url, f" __ID{video_id}__ " if video_id else " ")
             elif kind is not SourceType.UNKNOWN:
                 found.append(ParsedSource(kind, url, original=raw_url))
                 consumed = consumed.replace(raw_url, " ")
-            # Une URL inconnue (youtube, etc.) est ignorée silencieusement.
+            # Une URL inconnue (autre plateforme) est ignorée silencieusement.
 
         # Mentions et hashtags restants dans la ligne.
         if self._allow_bare_handles:

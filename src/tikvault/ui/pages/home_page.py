@@ -35,9 +35,10 @@ from tikvault.ui.widgets.animated_progress import AnimatedProgressBar
 from tikvault.ui.widgets.collapsible import CollapsibleSection
 
 PLACEHOLDER = (
-    "Collez ici vos liens TikTok — un ou plusieurs, même noyés dans du texte.\n"
-    "Fonctionne aussi avec @uncompte (profil entier) et #unhashtag.\n"
-    "Exemple : https://www.tiktok.com/@chef/video/7301234567890123456"
+    "Collez ici vos liens TikTok, YouTube (vidéos, Shorts, playlists, chaînes) "
+    "ou Facebook (vidéos, Reels) — un ou plusieurs, même noyés dans du texte.\n"
+    "Fonctionne aussi avec @uncompte TikTok (profil entier) et #unhashtag.\n"
+    "Exemples : tiktok.com/@chef/video/73012…  ·  youtu.be/dQw4w9WgXcQ  ·  fb.watch/aBc1…"
 )
 
 

@@ -67,7 +67,7 @@ class MainWindow(QMainWindow):
         self._paused = False
         self._force_close_flag = False
 
-        self.setWindowTitle("TikVault — téléchargement massif de vidéos TikTok")
+        self.setWindowTitle("TikVault — téléchargeur TikTok · YouTube · Facebook")
         self.setWindowIcon(icon("logo", settings.accent_color, 64))
         self.resize(1280, 820)
         self.setMinimumSize(1024, 680)
