@@ -16,7 +16,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# Imports statiques VOLONTAIRES : SQLAlchemy résout son pilote par nom à
+# l'exécution (« sqlite+aiosqlite:// »), ce qui est invisible pour l'analyse de
+# PyInstaller. Ces imports garantissent que le pilote et ses dépendances sont
+# toujours embarqués dans le .exe, quel que soit le fichier .spec utilisé.
+import aiosqlite  # noqa: F401
+import greenlet  # type: ignore[import-untyped]  # noqa: F401
 from sqlalchemy import event
+from sqlalchemy.dialects.sqlite import aiosqlite as _dialecte_aiosqlite  # noqa: F401
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
