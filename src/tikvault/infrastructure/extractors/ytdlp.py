@@ -19,6 +19,7 @@ sites « TikTok downloader ». L'extracteur de secours vise explicitement ``play
 from __future__ import annotations
 
 import asyncio
+import shutil
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -26,7 +27,7 @@ from typing import Any, cast
 import structlog
 import yt_dlp
 
-from tikvault.domain.errors import DownloadCancelled, ExtractionError
+from tikvault.domain.errors import DownloadCancelled, ExtractionError, FfmpegMissingError
 from tikvault.domain.models import DownloadOptions, SourceType, VideoMeta
 from tikvault.domain.ports import (
     DownloadProgress,
@@ -41,7 +42,19 @@ logger = structlog.get_logger(__name__)
 
 # Meilleure vidéo + meilleur audio, avec repli sur un flux progressif unique.
 BEST_FORMAT = "bv*+ba/b"
+#: Sans FFmpeg, impossible de fusionner vidéo + audio : on se limite aux flux complets.
+BEST_FORMAT_NO_FFMPEG = "b"
 AUDIO_ONLY_FORMAT = "ba/b"
+
+
+def ffmpeg_available() -> bool:
+    """FFmpeg est-il accessible dans le PATH ?
+
+    Interrogé à chaque téléchargement (peu coûteux) plutôt que mis en cache :
+    l'utilisateur peut installer FFmpeg pendant que l'application tourne.
+    """
+    return shutil.which("ffmpeg") is not None
+
 
 #: Référentiel TikTok : certaines requêtes échouent sans en-tête de provenance.
 BASE_HEADERS = {
@@ -133,8 +146,21 @@ class YtDlpExtractor(VideoExtractor):
         # yt-dlp ajoute lui-même l'extension correspondant au conteneur final.
         opts["outtmpl"] = {"default": str(destination.with_suffix(""))}
         opts["paths"] = {"home": str(destination.parent)}
-        opts["format"] = AUDIO_ONLY_FORMAT if options.audio_only else BEST_FORMAT
         opts["concurrent_fragment_downloads"] = 4
+
+        # --- Post-traitements : tous exigent FFmpeg. S'il est absent, on dégrade
+        # proprement plutôt que d'échouer : la vidéo est téléchargée telle quelle,
+        # sans fusion de flux ni métadonnées/miniature intégrées.
+        has_ffmpeg = ffmpeg_available()
+        if options.audio_only and not has_ffmpeg:
+            # Là, pas de plan B possible : la conversion MP3/M4A est le cœur de la demande.
+            raise FfmpegMissingError()
+
+        opts["format"] = (
+            AUDIO_ONLY_FORMAT
+            if options.audio_only
+            else (BEST_FORMAT if has_ffmpeg else BEST_FORMAT_NO_FFMPEG)
+        )
 
         postprocessors: list[dict[str, Any]] = []
         if options.audio_only:
@@ -145,11 +171,19 @@ class YtDlpExtractor(VideoExtractor):
                     "preferredquality": "192",
                 }
             )
-        if options.embed_metadata:
+        if options.embed_metadata and has_ffmpeg:
             postprocessors.append({"key": "FFmpegMetadata", "add_metadata": True})
-        if options.embed_thumbnail and not options.audio_only:
+        if options.embed_thumbnail and not options.audio_only and has_ffmpeg:
             opts["writethumbnail"] = True
             postprocessors.append({"key": "EmbedThumbnail", "already_have_thumbnail": False})
+        if not has_ffmpeg and (options.embed_metadata or options.embed_thumbnail):
+            logger.warning(
+                "ffmpeg_absent",
+                message=(
+                    "FFmpeg introuvable : téléchargement sans métadonnées ni miniature "
+                    "intégrées. Installez FFmpeg pour un résultat complet."
+                ),
+            )
         opts["postprocessors"] = postprocessors
 
         if progress is not None or cancel is not None:

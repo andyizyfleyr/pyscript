@@ -20,6 +20,7 @@ __all__ = [
     "DownloadCancelled",
     "ExtractionError",
     "FailureKind",
+    "FfmpegMissingError",
     "GeoBlockedError",
     "LoginRequiredError",
     "NetworkError",
@@ -126,12 +127,31 @@ class ConfigError(TikVaultError):
     default_message = "Configuration invalide."
 
 
+class FfmpegMissingError(ConfigError):
+    """FFmpeg absent de la machine : post-traitement (audio, métadonnées) impossible.
+
+    Attention à la classification : yt-dlp remonte « ffmpeg not found », et le
+    « not found » ne doit surtout pas être confondu avec une vidéo supprimée.
+    """
+
+    retryable = False
+    default_message = (
+        "FFmpeg est introuvable sur cette machine. Installez-le "
+        "(Windows : winget install ffmpeg · macOS : brew install ffmpeg · "
+        "Debian/Ubuntu : sudo apt install ffmpeg) puis relancez, "
+        "ou désactivez l'intégration des métadonnées/miniatures dans les Réglages."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Classification des erreurs brutes
 # ---------------------------------------------------------------------------
 # Chaque règle : motif regex (insensible à la casse) → type d'erreur.
 # Ordre important : les cas les plus précis d'abord.
 _PATTERNS: list[tuple[re.Pattern[str], type[TikVaultError]]] = [
+    # IMPORTANT : ce motif doit rester en tête. « ffmpeg not found » contiendrait sinon
+    # le « not found » du motif DeletedVideoError et serait classé « vidéo supprimée ».
+    (re.compile(r"ffmpeg|ffprobe|avconv|postprocess", re.I), FfmpegMissingError),
     (re.compile(r"private video|only the owner|followers-only", re.I), PrivateVideoError),
     (
         re.compile(r"video unavailable|does(n't| not) exist|has been removed|not found", re.I),
