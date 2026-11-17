@@ -5,7 +5,7 @@
 <h1 align="center">TikVault</h1>
 
 <p align="center">
-  <strong>Application desktop de téléchargement massif de vidéos TikTok — v2 « coller → télécharger »</strong><br/>
+  <strong>Téléchargeur massif TikTok · YouTube · Facebook — v2 « coller → télécharger »</strong><br/>
   Python 3.13 · PySide6 / Qt 6 · yt-dlp · asyncio · SQLAlchemy 2.0 async · Pydantic v2
 </p>
 
@@ -45,9 +45,14 @@ centaines de téléchargements en file.
 ## Fonctionnalités
 
 ### Sources
+- **Trois plateformes** :
+  - **TikTok** — vidéos, profils `@compte`, hashtags, sons, collections ;
+  - **YouTube** — vidéos, **Shorts**, playlists, chaînes (`youtube.com/@chaine`) ;
+  - **Facebook** — vidéos, **Reels**, liens courts `fb.watch`.
 - **Collage en vrac** : détection automatique des URL dans du texte libre,
-  nettoyage des paramètres de pistage, dédoublonnage (y compris les liens
-  courts `vm.tiktok.com` / `vt.tiktok.com`).
+  nettoyage des paramètres de pistage (`?si=…`, `?mibextid=…`, `?_r=…`),
+  dédoublonnage (y compris liens courts `vm.tiktok.com`, `youtu.be`,
+  `fb.watch` — un Short et son `watch?v=` comptent pour une seule vidéo).
 - **Import de fichier** `.txt` ou `.csv`.
 - **Profil complet** `@username`, **hashtag** `#defi`, **son/musique**,
   **playlist/collection**.
@@ -200,9 +205,10 @@ défaut dans `~/TikVault`.
 ### 1 · Télécharger — l'écran unique du quotidien
 Tout se passe ici, en trois gestes :
 
-1. **Collez** vos liens dans la grande zone (plusieurs liens à la fois, même
-   noyés dans du texte — l'application extrait, nettoie et dédoublonne). Les
-   `@comptes` (profil entier) et `#hashtags` fonctionnent aussi.
+1. **Collez** vos liens — TikTok, YouTube (vidéos, Shorts, playlists,
+   chaînes) ou Facebook (vidéos, Reels, `fb.watch`) — plusieurs à la fois,
+   même noyés dans du texte : l'application extrait, nettoie et dédoublonne.
+   Les `@comptes` TikTok (profil entier) et `#hashtags` fonctionnent aussi.
 2. Choisissez **Vidéo** ou **Audio (MP3)**.
 3. Cliquez **Télécharger**.
 
@@ -333,6 +339,7 @@ Icônes : `make icon` régénère `assets/icon.png` et `assets/icon.ico` via
 | Erreurs 429 en rafale | Limitation de débit TikTok | Réduire la concurrence, activer la rotation de proxies, ajouter un débit maximum |
 | Audio non converti en MP3 | FFmpeg absent | Installer FFmpeg — inutile avec le `.exe` qui l'embarque |
 | Contenu nécessitant une connexion | Session requise | Importer les cookies du navigateur (Réglages → Réseau) |
+| Vidéo Facebook en échec | Beaucoup exigent une session | Importer les cookies du navigateur (Réglages → Réseau) |
 | Beaucoup d'échecs soudains | yt-dlp obsolète | Réglages → Mises à jour → « Mettre à jour maintenant » |
 | Linux : `libGL.so.1` manquante | Dépendance Qt | `sudo apt install libgl1 libegl1` |
 
@@ -342,7 +349,7 @@ Icônes : `make icon` régénère `assets/icon.png` et `assets/icon.ico` via
 - **Prévisualisation vidéo** intégrée (QtMultimedia) depuis la file ou l'historique.
 - **Transcription automatique** des vidéos (whisper.cpp) et recherche plein texte dans les sous-titres.
 - **Synchronisation bidirectionnelle** : supprimer localement ce qui a disparu du compte, ou archiver avant suppression.
-- **Autres plateformes** : l'architecture à plugins permet d'ajouter Instagram Reels ou YouTube Shorts en implémentant un `VideoExtractor`.
+- **Autres plateformes** : Instagram Reels, X/Twitter… (l'architecture à plugins et yt-dlp les rendent faciles à ajouter).
 - **Mode serveur** : API REST + interface web pour piloter TikVault depuis un NAS.
 - **Profils de configuration** par projet (journalisme, archivage, veille) avec dossiers et filtres distincts.
 - **Statistiques enrichies** : graphiques d'évolution (vues, fréquence de publication) des comptes suivis.
