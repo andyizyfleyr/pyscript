@@ -67,7 +67,9 @@ class MainWindow(QMainWindow):
         self._paused = False
         self._force_close_flag = False
 
-        self.setWindowTitle("TikVault — téléchargeur TikTok · YouTube · Facebook")
+        # Titre volontairement réduit : la barre de titre reste sobre,
+        # la barre latérale affiche déjà la marque et la version.
+        self.setWindowTitle("TikVault")
         self.setWindowIcon(icon("logo", settings.accent_color, 64))
         self.resize(1280, 820)
         self.setMinimumSize(1024, 680)
