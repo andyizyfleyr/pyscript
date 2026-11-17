@@ -51,25 +51,29 @@ def setup_logging(
         cache_logger_on_first_use=True,
     )
 
-    console_renderer = (
-        structlog.processors.JSONRenderer(ensure_ascii=False)
-        if json_console
-        else structlog.dev.ConsoleRenderer(colors=sys.stderr.isatty(), sort_keys=False)
-    )
-    console_handler = logging.StreamHandler(sys.stderr)
-    console_handler.setFormatter(
-        structlog.stdlib.ProcessorFormatter(
-            processors=[
-                structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-                console_renderer,
-            ]
-        )
-    )
-
     root = logging.getLogger()
     root.handlers.clear()
-    root.addHandler(console_handler)
     root.setLevel(level)
+
+    # En application fenêtrée PyInstaller (console=False), sys.stderr vaut None :
+    # il n'y a tout simplement pas de console. On saute alors la sortie console
+    # (le fichier de log reste actif) au lieu de planter sur `.isatty()`.
+    if sys.stderr is not None:
+        console_renderer = (
+            structlog.processors.JSONRenderer(ensure_ascii=False)
+            if json_console
+            else structlog.dev.ConsoleRenderer(colors=sys.stderr.isatty(), sort_keys=False)
+        )
+        console_handler = logging.StreamHandler(sys.stderr)
+        console_handler.setFormatter(
+            structlog.stdlib.ProcessorFormatter(
+                processors=[
+                    structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+                    console_renderer,
+                ]
+            )
+        )
+        root.addHandler(console_handler)
 
     if log_file is not None:
         log_file.parent.mkdir(parents=True, exist_ok=True)
