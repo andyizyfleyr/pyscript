@@ -53,6 +53,35 @@ else:
         "       Lancez d'abord : uv run python scripts/fetch_ffmpeg.py"
     )
 
+# --- OpenSSL : embarquement FORCÉ des DLL du Python de compilation ---------
+# Symptôme corrigé : « DLL load failed while importing _ssl : La procédure
+# spécifiée est introuvable » au lancement du .exe. Cause : _ssl.pyd se lie à
+# une DLL OpenSSL incompatible trouvée ailleurs (PATH, System32…) au lieu de
+# celle livrée avec Python. On ajoute explicitement les DLL officielles du
+# Python qui compile, EN TÊTE de liste : elles priment sur toute autre copie.
+import sys as _sys
+
+if _sys.platform == "win32":
+    _dlls_ssl: list[str] = []
+    for _dossier in (
+        Path(_sys.base_prefix) / "DLLs",
+        Path(_sys.base_prefix),
+        Path(_sys.base_prefix) / "bin",
+    ):
+        if not _dossier.is_dir():
+            continue
+        for _motif in ("libssl*.dll", "libcrypto*.dll", "libffi*.dll"):
+            for _dll in _dossier.glob(_motif):
+                binaires.insert(0, (str(_dll), "."))
+                _dlls_ssl.append(_dll.name)
+    if _dlls_ssl:
+        print(f"OpenSSL embarqué explicitement : {sorted(set(_dlls_ssl))}")
+    else:
+        print(
+            "ATTENTION : aucune DLL OpenSSL trouvée près du Python de compilation — "
+            "si le .exe échoue sur _ssl, compilez avec le Python de python.org."
+        )
+
 a = Analysis(
     [str(RACINE / "src" / "tikvault" / "__main__.py")],
     pathex=[str(RACINE / "src")],
