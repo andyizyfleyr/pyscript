@@ -29,6 +29,12 @@ _portable = os.environ.get("TIKVAULT_YTDLP_PATH")
 if _portable and Path(_portable).is_dir() and _portable not in sys.path:
     sys.path.insert(0, _portable)
 
+# FFmpeg embarqué dans le .exe (le cas échéant) : placé en tête du PATH dès le
+# démarrage, pour que shutil.which() et yt-dlp le trouvent sans installation.
+from tikvault.infrastructure.bundle import ensure_ffmpeg_on_path  # noqa: E402
+
+ensure_ffmpeg_on_path()
+
 from tikvault import __version__  # noqa: E402
 from tikvault.infrastructure.logging_setup import setup_logging  # noqa: E402
 from tikvault.infrastructure.paths import default_paths  # noqa: E402

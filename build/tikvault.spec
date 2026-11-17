@@ -35,10 +35,28 @@ donnees = [
 # Certificats/locales éventuels distribués avec yt-dlp.
 donnees += collect_data_files("yt_dlp")
 
+# --- FFmpeg embarqué (optionnel) -------------------------------------------
+# Si `scripts/fetch_ffmpeg.py` a été lancé, build/ffmpeg/ contient ffmpeg.exe
+# et ffprobe.exe : on les glisse dans l'exécutable, sous le dossier « ffmpeg ».
+# Au démarrage, TikVault les place en tête du PATH (infrastructure/bundle.py).
+binaires: list[tuple[str, str]] = []
+DOSSIER_FFMPEG = RACINE / "build" / "ffmpeg"
+for _nom in ("ffmpeg.exe", "ffprobe.exe", "ffmpeg", "ffprobe"):
+    _exe = DOSSIER_FFMPEG / _nom
+    if _exe.exists():
+        binaires.append((str(_exe), "ffmpeg"))
+if binaires:
+    print(f"FFmpeg embarqué : {[b[0] for b in binaires]}")
+else:
+    print(
+        "NOTE : build/ffmpeg absent — le .exe sera fabriqué SANS FFmpeg embarqué.\n"
+        "       Lancez d'abord : uv run python scripts/fetch_ffmpeg.py"
+    )
+
 a = Analysis(
     [str(RACINE / "src" / "tikvault" / "__main__.py")],
     pathex=[str(RACINE / "src")],
-    binaries=[],
+    binaries=binaires,
     datas=donnees,
     hiddenimports=imports_caches,
     hookspath=[],
