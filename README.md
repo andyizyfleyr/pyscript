@@ -273,21 +273,53 @@ après crash, relances et backoff, anti-doublon, filtres, analyse d'URL,
 nommage, persistance SQLite, export CSV, veille de comptes, rotation de
 proxies, classification d'erreurs.
 
-## Fabriquer l'exécutable (.exe)
+## Fabriquer l'exécutable (.exe) et l'installeur Windows
 
-```console
-make exe
-# ou, à la main :
+### Étape 1 — Embarquer FFmpeg (recommandé, une seule fois)
+
+```powershell
+uv run python scripts/fetch_ffmpeg.py
+```
+
+Télécharge les builds officiels FFmpeg (~170 Mo) et place `ffmpeg.exe` +
+`ffprobe.exe` dans `build/ffmpeg/`. La recette PyInstaller les détecte et les
+glisse dans le `.exe` : **l'utilisateur final n'a rien à installer** —
+extraction MP3, miniatures et métadonnées fonctionnent d'emblée. (Sans cette
+étape, le `.exe` est fabriqué quand même, mais exige un FFmpeg système.)
+
+### Étape 2 — Fabriquer l'exécutable
+
+```powershell
 uv sync --extra build
 uv run pyinstaller build/tikvault.spec --noconfirm
 ```
 
-Le binaire autonome est produit dans `dist/` (`TikVault.exe` sous Windows —
-lancez la commande **sur** Windows pour obtenir un `.exe`, PyInstaller ne
-compile pas en croisé). La recette embarque les icônes, collecte les
-extracteurs yt-dlp chargés dynamiquement et exclut les modules inutiles
-(tkinter, QtWebEngine…) pour limiter la taille. UPX est volontairement
-désactivé pour éviter les faux positifs antivirus.
+→ **`dist\TikVault.exe`** : un fichier unique, lançable par double-clic sur
+n'importe quel Windows 10/11 64 bits, sans Python ni dépendance. (Lancez la
+même commande sur macOS ou Linux pour un binaire natif de ces systèmes —
+PyInstaller ne compile pas en croisé.)
+
+### Étape 3 — Créer l'installeur (Inno Setup)
+
+```powershell
+winget install JRSoftware.InnoSetup
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" build\installer.iss
+```
+
+→ **`dist\TikVault-2.0.0-installeur.exe`** : un vrai assistant d'installation
+en français qui :
+- installe TikVault **sans droits administrateur** (par utilisateur) ;
+- crée les raccourcis **menu Démarrer** et **Bureau** (optionnel) ;
+- propose de lancer l'application à la fin ;
+- apparaît dans « Applications installées » avec **désinstallation propre**
+  (vos téléchargements et réglages ne sont jamais supprimés) ;
+- gère les mises à jour : réinstaller une nouvelle version par-dessus suffit.
+
+> **SmartScreen** : l'exécutable n'étant pas signé numériquement, Windows peut
+> afficher « Windows a protégé votre ordinateur » au premier lancement.
+> Cliquez *Informations complémentaires* → *Exécuter quand même*.
+
+Raccourcis `Makefile` : `make ffmpeg`, `make exe`, `make installer`.
 
 Icônes : `make icon` régénère `assets/icon.png` et `assets/icon.ico` via
 `scripts/make_icon.py` (script autonome, sans dépendance).
@@ -299,7 +331,7 @@ Icônes : `make icon` régénère `assets/icon.png` et `assets/icon.ico` via
 | « Vidéo privée » / « supprimée » | Contenu inaccessible | Rien à faire ; l'erreur n'est pas retentée |
 | « Restriction de pays » | Géoblocage | Configurer un proxy du bon pays (Réglages → Réseau) |
 | Erreurs 429 en rafale | Limitation de débit TikTok | Réduire la concurrence, activer la rotation de proxies, ajouter un débit maximum |
-| Audio non converti en MP3 | FFmpeg absent | Installer FFmpeg et le mettre dans le `PATH` |
+| Audio non converti en MP3 | FFmpeg absent | Installer FFmpeg — inutile avec le `.exe` qui l'embarque |
 | Contenu nécessitant une connexion | Session requise | Importer les cookies du navigateur (Réglages → Réseau) |
 | Beaucoup d'échecs soudains | yt-dlp obsolète | Réglages → Mises à jour → « Mettre à jour maintenant » |
 | Linux : `libGL.so.1` manquante | Dépendance Qt | `sudo apt install libgl1 libegl1` |

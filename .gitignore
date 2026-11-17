@@ -6,6 +6,7 @@ __pycache__/
 # Dossier de travail PyInstaller — sauf la recette, versionnée.
 build/*
 !build/tikvault.spec
+!build/installer.iss
 dist/
 wheels/
 
