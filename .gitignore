@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+# Dossier de travail PyInstaller — sauf la recette, versionnée.
+build/*
+!build/tikvault.spec
+dist/
+wheels/
+
+# Environnements
+.venv/
+venv/
+env/
+
+# Outils
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Artefacts PyInstaller
+*.spec.bak
+pyi-*/
+
+# Données d'exécution (base locale, cache de miniatures, téléchargements)
+*.sqlite3
+*.sqlite3-*
+*.db
+downloads/
+.cache/
+
+# Éditeurs / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,161 @@
+[project]
+name = "tikvault"
+version = "0.1.0"
+description = "TikVault — application desktop de téléchargement massif de vidéos TikTok (PySide6 + yt-dlp, asyncio, SQLite)."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [{ name = "TikVault" }]
+keywords = ["tiktok", "yt-dlp", "downloader", "pyside6", "asyncio", "desktop"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Video",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    # Moteur de téléchargement (utilisé comme bibliothèque).
+    "yt-dlp>=2025.1.26",
+    # Validation des données et de la configuration.
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    # Persistance locale asynchrone.
+    "sqlalchemy>=2.0.36",
+    "aiosqlite>=0.20",
+    "greenlet>=3.1",
+    # Logs structurés.
+    "structlog>=24.4",
+    # HTTP (extracteur de secours, vérification des mises à jour, miniatures).
+    "httpx>=0.27",
+    # Emplacements de fichiers portables (config, cache, base).
+    "platformdirs>=4.3",
+    # Interface graphique Qt 6.
+    "pyside6>=6.8",
+]
+
+[project.optional-dependencies]
+# `uv sync --extra build` pour fabriquer l'exécutable.
+build = ["pyinstaller>=6.11"]
+
+[project.scripts]
+tikvault = "tikvault.__main__:main"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tikvault"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+
+# ---------------------------------------------------------------------------
+# Qualité du code
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle erreurs
+    "W",   # pycodestyle avertissements
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "C4",  # comprehensions
+    "SIM", # simplify
+    "RUF", # ruff spécifique
+    "ASYNC",
+    "PTH", # préférer pathlib
+]
+ignore = [
+    "E501",   # longueur de ligne gérée par le formateur
+    "B008",   # appels de fonction dans les arguments par défaut (pattern injection de dépendances)
+    "SIM108", # le ternaire n'est pas toujours plus lisible
+    # Opérations pathlib sur des fichiers locaux de petite taille (mkdir, stat, rename) :
+    # les déporter dans un thread coûterait plus cher que l'opération elle-même.
+    # Les accès réellement coûteux (hash d'un fichier, taille d'un dossier) passent
+    # déjà par asyncio.to_thread.
+    "ASYNC240",
+    # `timeout` en paramètre de `shutdown()` / `wait_idle()` : API assumée et testée.
+    "ASYNC109",
+    # Attente active volontaire (pompe du thread moteur, attente de fin de lot).
+    "ASYNC110",
+    # TypeVar/Generic classiques plutôt que la syntaxe PEP 695 (`class Foo[T]`) :
+    # celle-ci n'est analysable qu'à partir de Python 3.12, alors que le code doit
+    # rester exécutable sur les interprètes 3.11 encore courants.
+    "UP046",
+    "UP047",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tikvault"]
+
+[tool.ruff.format]
+quote-style = "double"
+line-ending = "lf"
+
+# ---------------------------------------------------------------------------
+# Typage strict
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.13"
+strict = true
+mypy_path = "src"
+files = ["src/tikvault", "tests"]
+warn_unreachable = true
+warn_return_any = true
+disallow_any_generics = true
+extra_checks = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = ["yt_dlp.*"]
+ignore_missing_imports = true
+follow_untyped_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers"
+markers = [
+    "gui: tests nécessitant un serveur d'affichage Qt (exclus par défaut)",
+    "network: tests nécessitant un accès réseau réel (exclus par défaut)",
+]
+
+[tool.coverage.run]
+source = ["src/tikvault"]
+branch = true
+omit = ["*/ui/*", "*/__main__.py"]
