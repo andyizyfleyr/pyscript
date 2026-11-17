@@ -28,6 +28,16 @@ RACINE = Path(SPECPATH).resolve().parent  # noqa: F821
 # yt-dlp charge ses extracteurs dynamiquement : il faut forcer leur collecte.
 imports_caches = collect_submodules("yt_dlp")
 
+# SQLAlchemy charge son pilote par NOM à l'exécution (« sqlite+aiosqlite:// ») :
+# PyInstaller ne voit jamais ces imports → « No module named 'aiosqlite' » au
+# premier démarrage du moteur. On force donc le pilote et ses dépendances.
+imports_caches += [
+    "aiosqlite",
+    "sqlalchemy.dialects.sqlite",
+    "sqlalchemy.dialects.sqlite.aiosqlite",
+    "greenlet",  # pont sync/async interne de SQLAlchemy, chargé tardivement
+]
+
 donnees = [
     # (source, destination relative dans l'exécutable)
     (str(RACINE / "assets"), "assets"),
